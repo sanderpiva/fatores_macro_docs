@@ -1,4 +1,9 @@
-# --- 3 Carregando dataframe de preços de ações e checando valores missing ---
-df_preco = pd.read_csv('/content/precos_acoes_5anos.csv')
-display(df_preco.head())
-df_preco.info()
+#4 Carregar dataframe Risco Brasil - CDS e checar valores missing
+df_risc = pd.read_csv('/content/Brasil_CDS_5anos_final.csv', sep=';')
+print("Primeiras linhas do dataframe carregado corretamente:")
+display(df_risc.head())
+print("\nInformações do dataframe carregado corretamente:")
+df_risc.info()
+df_risc.isnull().sum()
+
+
