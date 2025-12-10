@@ -1,0 +1,71 @@
+{
+    "Itau": {
+        "metrics": {
+            "r_squared_ajustado": 0.0725,
+            "f_pvalue": 0.0
+        },
+        "fatores": {
+            "const": {
+                "beta": 0.0007,
+                "p_valor": 0.144,
+                "significativo": false
+            },
+            "RETORNO_LOG_CAMBIO": {
+                "beta": -0.4677,
+                "p_valor": 0.0,
+                "significativo": true
+            },
+            "RETORNO_LOG_CDS": {
+                "beta": -0.0504,
+                "p_valor": 0.0003,
+                "significativo": true
+            }
+        }
+    },
+    "Petrobras": {
+        "metrics": {
+            "r_squared_ajustado": 0.0331,
+            "f_pvalue": 0.0
+        },
+        "fatores": {
+            "const": {
+                "beta": 0.0013,
+                "p_valor": 0.0357,
+                "significativo": true
+            },
+            "RETORNO_LOG_CAMBIO": {
+                "beta": -0.3923,
+                "p_valor": 0.0,
+                "significativo": true
+            },
+            "RETORNO_LOG_CDS": {
+                "beta": -0.0588,
+                "p_valor": 0.0019,
+                "significativo": true
+            }
+        }
+    },
+    "Vale Rio Doce": {
+        "metrics": {
+            "r_squared_ajustado": 0.0183,
+            "f_pvalue": 0.0
+        },
+        "fatores": {
+            "const": {
+                "beta": 0.0004,
+                "p_valor": 0.4853,
+                "significativo": false
+            },
+            "RETORNO_LOG_CAMBIO": {
+                "beta": -0.2708,
+                "p_valor": 0.0,
+                "significativo": true
+            },
+            "RETORNO_LOG_CDS": {
+                "beta": -0.0316,
+                "p_valor": 0.0525,
+                "significativo": false
+            }
+        }
+    }
+}

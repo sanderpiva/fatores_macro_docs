@@ -1,0 +1,544 @@
+
+# --- Bibliotecas ---
+import pandas as pd
+import os
+import csv
+import numpy as np
+import json
+import statsmodels.api as sm
+from google.colab import files
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# --- 1 Carregando Dataframe SELIC ---
+selic_file = '/content/STP-20251001161617503_selic.csv'
+
+try:
+    df_selic = pd.read_csv(selic_file, on_bad_lines='warn', sep=';')
+    print(f"Dataset {df_selic} carregado com sucesso com utf-8 e separador ';'.")
+except UnicodeDecodeError:
+    df_selic = pd.read_csv(selic_file, encoding='latin1', on_bad_lines='warn', sep=';')
+    print(f"Dataset {df_selic} carregado com sucesso com latin1 e separador ';'.")
+except Exception as e:
+    print(f"Erro ao carregar o dataset {df_selic}: {e}")
+
+print(f"\nPrimeiras 5 linhas do dataset {selic_file}:")
+display(df_selic.head())
+print(f"\nInformações do dataset {selic_file}:")
+df_selic.info()
+
+# --- 2 Carregando Dataframe Taxa de Câmbio ---
+cambio_file = '/content/STP-20251001162317444_tx_cambio.csv'
+
+metadados_cambio = {}
+data_list = []
+original_cambio_col_name = None
+
+try:
+
+    with open(cambio_file, 'r', encoding='latin1') as file:
+
+        reader = csv.reader(file, delimiter=';')
+
+        linha1 = next(reader)
+        if len(linha1) > 1:
+            original_cambio_col_name = linha1[1].strip()
+        else:
+            original_cambio_col_name = 'CAMBIO'
+
+        linha2 = next(reader)
+
+        try:
+            next(reader)
+        except StopIteration:
+            pass
+
+        metadados_cambio = {
+            'nome_original': original_cambio_col_name,
+            'unidade': linha2[1].strip() if len(linha2) > 1 else 'N/A'
+        }
+
+        for row in reader:
+            if not row:
+                continue
+
+            if row[0].startswith('Fonte'):
+                break
+
+            if len(row) >= 2:
+                data_list.append([row[0].strip(), row[1].strip()])
+
+
+    df_cambio = pd.DataFrame(data_list, columns=['Data', original_cambio_col_name])
+
+except Exception as e:
+    print(f"Erro ao carregar e processar o dataset {cambio_file}: {e}")
+    exit()
+
+df_cambio['Data'] = pd.to_datetime(df_cambio['Data'], format='%d/%m/%Y', errors='coerce')
+df_cambio[original_cambio_col_name] = df_cambio[original_cambio_col_name].str.replace(',', '.', regex=False)
+df_cambio[original_cambio_col_name] = pd.to_numeric(df_cambio[original_cambio_col_name], errors='coerce')
+
+print("--- Metadados Documentados ---")
+print(f"Nome da Série Original: {metadados_cambio['nome_original']}")
+print(f"Unidade de Medida: {metadados_cambio['unidade']}")
+print("------------------------------")
+
+print(f"\nPrimeiras 5 linhas do dataframe {cambio_file} CORRIGIDO:")
+display(df_cambio.head())
+
+print(f"\nInformações do dataframe {cambio_file} CORRIGIDO:")
+df_cambio.info()
+
+# --- 3 Convertendo as colunas 'Data', do df_cambio, para datetime ---
+df_selic['Data'] = pd.to_datetime(df_selic['Data'], format='%d/%m/%Y', errors='coerce')
+df_cambio['Data'] = pd.to_datetime(df_cambio['Data'], format='%d/%m/%Y', errors='coerce')
+
+# --- 4 Filtrando df_selic | Renomeando a coluna da SELIC ---
+df_selic_filtered = df_selic[df_selic['Data'].isin(df_cambio['Data'])].copy()
+
+df_selic_filtered = df_selic_filtered.rename(columns={'432 - Taxa de juros - Meta Selic definida pelo Copom - % a.a.': 'Taxa Selic - a.a.'})
+
+# --- 5 Renomeando a coluna do dataframe Taxa de Cambio: df_cambio ---
+df_cambio = df_cambio.rename(columns={'Taxa de cambio - Livre - Dolar americano (venda) - diario - u.m.c./US$': 'Taxa Cambio u.m.c./US$'})
+
+# --- 6 Realizando merge dos dataframes df_selic, df_cambio ---
+merged_df_selic_cambio = pd.merge(
+    df_selic_filtered[['Data', 'Taxa Selic - a.a.']],
+    df_cambio[['Data', 'Taxa Cambio u.m.c./US$']],
+    on='Data',
+    how='inner'
+)
+
+print("\nPrimeiras linhas do dataset unido corretamente:")
+display(merged_df_selic_cambio.head())
+print("\nInformações do dataset unido corretamente:")
+merged_df_selic_cambio.info()
+
+# --- 7 Unir merge_df com dataframe de preços de ações ---
+df_preco = pd.read_csv('/content/precos_acoes_5anos.csv')
+display(df_preco.head())
+df_preco.info()
+
+# --- 8 Garantir que a coluna 'Date' no df_preco esteja no formato datatime e nomeada como 'Data' ---
+df_preco['Data'] = pd.to_datetime(df_preco['Date'])
+
+df_preco_filtered = df_preco[df_preco['Data'].isin(merged_df_selic_cambio['Data'])].copy()
+
+merged_df_selic_cambio_preco = pd.merge(
+    merged_df_selic_cambio,
+    df_preco_filtered[['Data', 'ITUB4', 'PETR4', 'VALE3']],
+    on='Data',
+    how='inner'
+)
+
+print("\nPrimeiras linhas do dataset final unido:")
+display(merged_df_selic_cambio_preco.head())
+print("\nInformações do dataset final unido:")
+merged_df_selic_cambio_preco.info()
+merged_df_selic_cambio_preco.tail()
+
+# --- 9 Unir dataframe merged_df_selic_cambio_preco com o Risco Brasil - CDS ---
+# 9.1 Realizar ajustes no frame Risco Brasil - CDS
+df_risc = pd.read_csv('/content/Brasil_CDS_5anos_final.csv', sep=';')
+print("Primeiras linhas do dataframe carregado corretamente:")
+display(df_risc.head())
+print("\nInformações do dataframe carregado corretamente:")
+df_risc.info()
+df_risc.isnull().sum()
+
+df_risc['Data'] = pd.to_datetime(df_risc['Data'], format='%d.%m.%Y', errors='coerce')
+
+print("\nPrimeiras linhas do dataset df_risc com a coluna 'Data' convertida:")
+display(df_risc.head())
+print("\nInformações do dataset df_risc com a coluna 'Data' convertida:")
+df_risc.info()
+
+# 9.2 Filtrar o dataframe merged_risk
+merged_risc_filtered = df_risc[df_risc['Data'].isin(merged_df_selic_cambio_preco['Data'])].copy()
+merged_risc_filtered.info()
+
+# 9.3 Realizar o merge do dataframe merged_risk_filtered (CDS) com o dataframe merged_df_selic_cambio_preco
+merged_df_selic_cambio_preco_cds = pd.merge(
+    merged_df_selic_cambio_preco,
+    merged_risc_filtered[['Data', 'CDS']],
+    on='Data',
+    how='inner'
+)
+
+display(merged_df_selic_cambio_preco_cds.head())
+merged_df_selic_cambio_preco_cds.info()
+
+# 9.4 Verificar a ordem das colunas e proceder reorganização
+current_cols = merged_df_selic_cambio_preco_cds.columns.tolist()
+display(current_cols)
+
+desired_order = [
+    'Data',
+    'Taxa Selic - a.a.',
+    'Taxa Cambio u.m.c./US$',
+    'CDS',
+    'ITUB4',
+    'PETR4',
+    'VALE3'
+]
+
+merged_dfs_columns_ordered = merged_df_selic_cambio_preco_cds.reindex(columns=desired_order)
+
+print("\nPrimeiras linhas do dataset final com colunas reordenadas:")
+display(merged_dfs_columns_ordered.head())
+print("\nInformações do dataset final com colunas reordenadas:")
+merged_dfs_columns_ordered.info()
+
+# 9.5 Renomear colunas para os nomes reais das companhias
+merged_dfs = merged_dfs_columns_ordered.rename(columns={
+    'ITUB4': 'Itau',
+    'PETR4': 'Petrobras',
+    'VALE3': 'Vale Rio Doce'
+})
+
+print("\nPrimeiras linhas do dataframe final com colunas de ações renomeadas:")
+display(merged_dfs.head())
+print("\nInformações do dataframe final com colunas de ações renomeadas:")
+merged_dfs.info()
+
+merged_dfs['CDS'] = merged_dfs['CDS'].str.replace(',', '.', regex=False)
+merged_dfs['CDS'] = merged_dfs['CDS'].astype(float)
+merged_dfs.info()
+
+# 9.6 Transformar tipo de dados da Taxa Selic em numero
+col = merged_dfs[
+    'Taxa Selic - a.a.'
+].astype(str)
+
+# limpar espaço
+col = col.str.strip()
+
+# remover símbolo %
+col = col.str.replace('%', '', regex=False)
+
+# trocar vírgula por ponto
+col = col.str.replace(',', '.', regex=False)
+
+# remover strings vazias
+col = col.replace('', None)
+
+# converter
+merged_dfs[
+    'Taxa Selic - a.a.'
+] = pd.to_numeric(col, errors='coerce')
+
+#display resultado
+merged_dfs.info()
+display(merged_dfs)
+
+# 9.7 Ajustar escala da coluna Taxa Selic (Dividir por 100)
+# Correção da escala da Selic
+merged_dfs['Taxa Selic - a.a.'] = merged_dfs['Taxa Selic - a.a.'] / 100
+
+# Verificação
+display(merged_dfs['Taxa Selic - a.a.'].head())
+merged_dfs.info()
+display(merged_dfs)
+
+merged_dfs['Taxa Cambio u.m.c./US$'] = merged_dfs['Taxa Cambio u.m.c./US$'].round(2)
+merged_dfs['Itau'] = merged_dfs['Itau'].round(2)
+merged_dfs['Petrobras'] = merged_dfs['Petrobras'].round(2)
+merged_dfs['Vale Rio Doce'] = merged_dfs['Vale Rio Doce'].round(2)
+
+print("DataFrame 'merged_dfs' com colunas arredondadas para 2 casas decimais:")
+display(merged_dfs.head())
+
+# --- 10 Salvar dataframe parcial ---
+output_file_name = 'parcial_merged_dfs_cds.csv'
+merged_dfs.to_csv(output_file_name, index=False)
+
+print(f"\nDataframe parcial salvo localmente como: {output_file_name}")
+
+files.download(output_file_name)
+
+# --- 11 Carregar dataframe parcial e calcular o retorno logaritmo ---
+try:
+    final_merged_df = pd.read_csv('/content/parcial_merged_dfs_cds.csv')
+    final_merged_df['Data'] = pd.to_datetime(final_merged_df['Data'])
+    final_merged_df = final_merged_df.sort_values('Data')
+except FileNotFoundError:
+    print("Certifique-se de que o arquivo final_merged_dataset.csv está disponível.")
+
+acoes = ['Itau', 'Petrobras', 'Vale Rio Doce']
+
+for acao in acoes:
+
+    final_merged_df[f'RETORNO_LOG_{acao}'] = np.log(
+        final_merged_df[acao] / final_merged_df[acao].shift(1)
+    )
+
+final_merged_df = final_merged_df.dropna(subset=[f'RETORNO_LOG_{acao}' for acao in acoes])
+
+print("DataFrame com as novas colunas de Retorno Logarítmico:")
+final_merged_df_with_returns = final_merged_df[[
+    'Data', 'Taxa Selic - a.a.', 'Taxa Cambio u.m.c./US$', 'CDS', 'Itau', 'RETORNO_LOG_Itau',
+    'Petrobras', 'RETORNO_LOG_Petrobras',
+    'Vale Rio Doce', 'RETORNO_LOG_Vale Rio Doce']]
+
+display(final_merged_df_with_returns.head())
+final_merged_df_with_returns.info()
+
+for acao in acoes:
+    final_merged_df_with_returns[f'RETORNO_LOG_{acao}'] = final_merged_df_with_returns[f'RETORNO_LOG_{acao}'].round(3)
+
+print("DataFrame com as colunas de Retorno Logarítmico arredondadas:")
+display(final_merged_df_with_returns.head())
+display(final_merged_df_with_returns.tail())
+
+# --- 12 Salvar dataframe final com os retornos logaritmos ---
+output_file_name = 'final_merged_dfs_with_log_returns.csv'
+final_merged_df_with_returns.to_csv(output_file_name, index=False)
+
+print(f"\nDataset final salvo localmente como: {output_file_name}")
+
+files.download(output_file_name)
+
+# --- 13 Carregar dataframe final ---
+df_with_returns = pd.read_csv('/content/final_merged_dfs_with_log_returns.csv')
+
+print("\nPrimeiras linhas do dataset com retornos logarítmicos:")
+display(df_with_returns.head())
+df_with_returns.info()
+
+# --- 14 Colocando o dataframe final em uma variável para explorar graficamente ---
+df = df_with_returns.copy()
+
+
+df['Data'] = pd.to_datetime(df['Data'])
+df = df.sort_values('Data')
+display(df)
+
+
+# --- 15.1 Tratamento dos fatores macro. Converter colunas da taxa de cambio e cds em retornos logaritmos ---
+df['RETORNO_LOG_CAMBIO'] = np.log(df['Taxa Cambio u.m.c./US$'] /
+                                  df['Taxa Cambio u.m.c./US$'].shift(1))
+
+df['RETORNO_LOG_CDS'] = np.log(df['CDS'] /
+                                 df['CDS'].shift(1))
+
+df['RETORNO_LOG_CAMBIO'] = df['RETORNO_LOG_CAMBIO'].round(6)
+df['RETORNO_LOG_CDS'] = df['RETORNO_LOG_CDS'].round(6)
+display(df)
+
+
+# --- 15.2 Remover linhas com NaN | Definir variáveis independentes X ---
+df = df.dropna(subset=['Taxa Selic - a.a.', 'RETORNO_LOG_CAMBIO', 'RETORNO_LOG_CDS'] + [col for col in df.columns if col.startswith('RETORNO_LOG_')])
+
+X = df[['Taxa Selic - a.a.', 'RETORNO_LOG_CAMBIO', 'RETORNO_LOG_CDS']]
+X = sm.add_constant(X)
+
+
+#---15.3 Salvar dataframe final com os ajustes necessários ao modelo preditivo, incluindo 'RETORNO_LOG_CAMBIO', 'RETORNO_LOG_CDS': df_final_model
+
+df_final = df.copy()
+display(df_final)
+display(df_final.info())
+output_file_name = 'df_final_model.csv'
+df_final.to_csv(output_file_name, index=False)
+
+
+# --- 16.1 Gráficos de Série Temporal dos Fatores Macroeconômicos ---
+sns.set_style('whitegrid')
+
+fig, axes = plt.subplots(3, 1, figsize=(15, 18), sharex=False)
+
+sns.lineplot(ax=axes[0], x='Data', y='Taxa Selic - a.a.', data=df, color='blue')
+axes[0].set_title('Série Temporal da Taxa Selic', fontsize=16)
+axes[0].set_ylabel('Taxa Selic (a.a.)', fontsize=12)
+axes[0].tick_params(axis='y', labelsize=10)
+axes[0].tick_params(axis='x', rotation=45, labelsize=10)
+axes[0].grid(True, linestyle='--', alpha=0.7)
+
+sns.lineplot(ax=axes[1], x='Data', y='Taxa Cambio u.m.c./US$', data=df, color='green')
+axes[1].set_title('Série Temporal da Taxa de Câmbio', fontsize=16)
+axes[1].set_ylabel('Taxa de Câmbio (u.m.c./US$)', fontsize=12)
+axes[1].tick_params(axis='y', labelsize=10)
+axes[1].tick_params(axis='x', rotation=45, labelsize=10)
+axes[1].grid(True, linestyle='--', alpha=0.7)
+
+sns.lineplot(ax=axes[2], x='Data', y='CDS', data=df, color='red')
+axes[2].set_title('Série Temporal do CDS', fontsize=16)
+axes[2].set_xlabel('Data', fontsize=12)
+axes[2].set_ylabel('CDS', fontsize=12)
+axes[2].tick_params(axis='x', rotation=45, labelsize=10)
+axes[2].tick_params(axis='y', labelsize=10)
+axes[2].grid(True, linestyle='--', alpha=0.7)
+
+plt.tight_layout()
+plt.show()
+
+
+#16.2 --- Gráficos de Série Temporal dos Fatores Macroeconômicos: RETORNO_LOG_CAMBIO, RETORNO_LOG_CDS
+
+sns.set_style('whitegrid')
+
+fig, axes = plt.subplots(2, 1, figsize=(15, 12), sharex=False) # Criar nova figura e eixos para estes gráficos
+
+sns.lineplot(ax=axes[0], x='Data', y='RETORNO_LOG_CAMBIO', data=df, color='green')
+axes[0].set_title('Série Temporal RETORNO_LOG_CAMBIO', fontsize=16)
+axes[0].set_ylabel('RETORNO_LOG_CAMBIO', fontsize=12)
+axes[0].tick_params(axis='x', rotation=45, labelsize=10)
+axes[0].tick_params(axis='y', labelsize=10)
+axes[0].grid(True, linestyle='--', alpha=0.7)
+
+sns.lineplot(ax=axes[1], x='Data', y='RETORNO_LOG_CDS', data=df, color='red')
+axes[1].set_title('Série Temporal do RETORNO_LOG_CDS', fontsize=16)
+axes[1].set_xlabel('Data', fontsize=12)
+axes[1].set_ylabel('RETORNO_LOG_CDS', fontsize=12)
+axes[1].tick_params(axis='x', rotation=45, labelsize=10)
+axes[1].tick_params(axis='y', labelsize=10)
+axes[1].grid(True, linestyle='--', alpha=0.7)
+
+plt.tight_layout()
+plt.show()
+
+# --- 16.3 Gráficos de Série Temporal dos Preços das Ações ---
+
+acoes_precos = ['Itau', 'Petrobras', 'Vale Rio Doce']
+
+fig, axes = plt.subplots(3, 1, figsize=(15, 18), sharex=False)
+
+for i, acao in enumerate(acoes_precos):
+    sns.lineplot(ax=axes[i], x='Data', y=acao, data=df, color=plt.cm.viridis(i/len(acoes_precos)))
+    axes[i].set_title(f'Série Temporal dos Preços da Ação {acao}', fontsize=16)
+    axes[i].set_ylabel(f'Preço da Ação {acao}', fontsize=12)
+    axes[i].tick_params(axis='x', rotation=45, labelsize=10)
+    axes[i].tick_params(axis='y', labelsize=10)
+    
+    axes[i].grid(True, linestyle='--', alpha=0.7)
+
+axes[-1].set_xlabel('Data', fontsize=12)
+
+plt.tight_layout()
+plt.show()
+
+#---16.4 Gráficos de Série Temporal do Retorno logaritmo dos Preços das Ações 
+
+acoes_precos = ['RETORNO_LOG_Itau', 'RETORNO_LOG_Petrobras', 'RETORNO_LOG_Vale Rio Doce']
+
+fig, axes = plt.subplots(3, 1, figsize=(15, 18), sharex=False)
+
+for i, acao in enumerate(acoes_precos):
+    sns.lineplot(ax=axes[i], x='Data', y=acao, data=df, color=plt.cm.viridis(i/len(acoes_precos)))
+    axes[i].set_title(f'Série Temporal dos Preços da Ação {acao}', fontsize=16)
+    axes[i].set_ylabel(f'Preço da Ação {acao}', fontsize=12)
+    axes[i].tick_params(axis='x', rotation=45, labelsize=10)
+    axes[i].tick_params(axis='y', labelsize=10)
+    axes[i].grid(True, linestyle='--', alpha=0.7)
+
+axes[-1].set_xlabel('Data', fontsize=12)
+axes[-1].tick_params(axis='x', rotation=45, labelsize=10)
+
+plt.tight_layout()
+plt.show()
+
+# --- 16.5 Correlação ---
+# Calcular a matriz de correlação
+correlation_matrix = df[['Taxa Selic - a.a.', 'RETORNO_LOG_CAMBIO', 'RETORNO_LOG_CDS', 'RETORNO_LOG_Itau', 'RETORNO_LOG_Petrobras', 'RETORNO_LOG_Vale Rio Doce']].corr()
+        
+# Criar o mapa de calor
+plt.figure(figsize=(12, 10))
+sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', fmt=".2f", linewidths=.5)
+plt.title('Mapa de Calor da Correlação das Variáveis Independentes x Variáveis Dependentes', fontsize=16)
+plt.show()
+
+# --- 17 MODELO DE REGRESSÃO MULTIPLA: RODAR REGRESSÃO PARA CADA AÇÃO ---
+# 17.1 Considerar todas as variáveis (Selic, Cambio, CDS)
+acoes_retorno = ['RETORNO_LOG_Itau', 'RETORNO_LOG_Petrobras', 'RETORNO_LOG_Vale Rio Doce']
+
+for y_var in acoes_retorno:
+    Y = df[y_var]
+
+    model = sm.OLS(Y, X).fit()
+
+    print(f"\n--- Resultados da Regressão para {y_var} ---")
+    print(model.summary())
+
+# 17.2 Removendo apenas coluna da taxa Selic
+X_less_selic = df[['RETORNO_LOG_CAMBIO', 'RETORNO_LOG_CDS']]
+X_less_selic = sm.add_constant(X_less_selic)
+
+acoes_retorno = ['RETORNO_LOG_Itau', 'RETORNO_LOG_Petrobras', 'RETORNO_LOG_Vale Rio Doce']
+
+for y_var in acoes_retorno:
+    Y = df[y_var]
+
+    model_less_selic = sm.OLS(Y, X_less_selic).fit()
+
+    print(f"\n--- Resultados da Regressão para {y_var} (Apenas Risco Brasil (CDS) e Cambio) ---")
+    print(model_less_selic.summary())
+
+# 17.3 Removendo apenas a Taxa de cambio
+X_less_cambio = df[['Taxa Selic - a.a.', 'RETORNO_LOG_CDS']]
+X_less_cambio = sm.add_constant(X_less_cambio)
+
+acoes_retorno = ['RETORNO_LOG_Itau', 'RETORNO_LOG_Petrobras', 'RETORNO_LOG_Vale Rio Doce']
+
+for y_var in acoes_retorno:
+    Y = df[y_var]
+
+    model_less_cambio = sm.OLS(Y, X_less_cambio).fit()
+
+    print(f"\n--- Resultados da Regressão para {y_var} (Apenas Risco Brasil (CDS) e Selic) ---")
+    print(model_less_cambio.summary())
+
+# 17.4 Ultimo teste, removendo as colunas Selic, Cambio e mantendo Risco Brasil (CDS)
+X_cds_only = df[['RETORNO_LOG_CDS']]
+X_cds_only = sm.add_constant(X_cds_only)
+
+acoes_retorno = ['RETORNO_LOG_Itau', 'RETORNO_LOG_Petrobras', 'RETORNO_LOG_Vale Rio Doce']
+
+for y_var in acoes_retorno:
+    Y = df[y_var]
+
+    model_cds_only = sm.OLS(Y, X_cds_only).fit()
+
+    print(f"\n--- Resultados da Regressão para {y_var} (Apenas Risco Brasil (CDS)) ---")
+    print(model_cds_only.summary())
+
+# --- 18 Salvar o modelo preditivo e seus resultados em arquivo JSON -> App Flutter ---
+resultados_finais = {}
+
+acoes_retorno = ['RETORNO_LOG_Itau', 'RETORNO_LOG_Petrobras', 'RETORNO_LOG_Vale Rio Doce']
+
+for y_var in acoes_retorno:
+    Y = df[y_var]
+
+    # Usando o modelo com Cambio + CDS (X_less_selic) conforme Considerações Finais
+    model = sm.OLS(Y, X_less_selic).fit()
+
+    ticker = y_var.replace('RETORNO_LOG_', '')
+
+    df_results = model.params.to_frame(name='Coeficiente')
+    df_results['P_Valor'] = model.pvalues
+
+    coeficientes = {}
+    for index, row in df_results.iterrows():
+        coeficientes[index] = {
+            "beta": round(row['Coeficiente'], 4),
+            "p_valor": round(row['P_Valor'], 4),
+            "significativo": bool(row['P_Valor'] < 0.05)
+        }
+
+    resultados_finais[ticker] = {
+        "metrics": {
+            "r_squared_ajustado": round(model.rsquared_adj, 4),
+            "f_pvalue": round(model.f_pvalue, 4)
+        },
+        "fatores": coeficientes
+    }
+
+with open('model_results.json', 'w') as f:
+    json.dump(resultados_finais, f, indent=4)
+
+print("Resultados salvos em 'model_results.json'. Este arquivo será usado pelo Flutter.")
+
+# --- Download do arquivo JSON ---
+files.download('model_results.json')

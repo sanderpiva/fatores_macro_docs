@@ -1,0 +1,50 @@
+##Bibliotecas
+###1 Carregando Dataframe SELIC e verificando existencia de valores nulos ou missing
+###2 Carregando Dataframe Taxa de Câmbio e tratando os dados
+##3 Convertendo as colunas 'Data', do df_cambio, para datetime
+##4 Filtrando df_selic para incluir apenas as datas presentes em df_cambio | Renomeando a coluna da SELIC no dataframe filtrado
+##5 Renomeando a coluna do dataframe Taxa de Cambio: df_cambio
+##6 Realizando merge dos dataframes df_selic, df_cambio, tendo como referencia/índice a coluna 'Data'
+###7 Unir o dataframe merge_df (df_selic + df_cambio) com dataframe referente aos preços do fechamento de ações do Itau, Petrobras e Vale do Rio Doce nos ultimos 5 anos. A coluna 'Data' será a referência/índice para esse procedimento.
+##8 Garantir que a coluna 'Date' no dataframe df_preco esteja no formato datatime e nomeada como 'Data', seguindo o padrão dos dataframes anteriores. Proceder o merge entre os dataframes.
+###9 Unir dataframe merged_df_selic_cambio_preco com o Risco Brasil - CDS
+###9.1 Realizar ajustes no frame Risco Brasil - CDS
+##9.2 Filtrar o dataframe merged_risk de modo que sejam incluidas apenas as datas do dataframe merged_df_selic_cambio_preco
+##9.3 Realizar o merge do dataframe merged_risk_filtered (CDS) com o dataframe merged_df_selic_cambio_preco
+##9.4 Verificar a ordem das colunas do dataframe merged_df_selic_cambio_preco_cds e proceder reorganização
+##9.5 Renomear colunas para os nomes reais das companhias
+##9.6 Transformar tipo de dados da Taxa Selic em numero
+##9.7 Ajustar escala da coluna Taxa Selic (Dividir por 100)
+##10 Salvar dataframe parcial
+##11 Carregar dataframe parcial (parcial_merged_dfs) e calcular o retorno logaritmo das ações do itaú, Petrobras, Vale do Rio Doce
+##12 Salvar dataframe final com os retornos logaritmos
+##13 Carregar dataframe final
+##14 Colocando o dataframe final em uma variável para explorar graficamente o comportantmento dos dados, bem como utiliza-lo no modelo preditivo
+
+#15 Modelo de Regressão Linear Múltipla: Preparação
+##15.1 Tratamento dos fatores macro. Converter colunas da taxa de cambio e cds em retornos logaritmos. Incluir retornos ao dataframe
+##15.2 Remover linhas com NaN geradas pelos cálculos de retorno/choque E pela conversão da Selic. Definir variáveis independentes X
+##15.3Salvar dataframe final com os ajustes necessários ao modelo preditivo, incluindo 'RETORNO_LOG_CAMBIO', 'RETORNO_LOG_CDS': df_final_model
+
+
+##16 GRAFICOS
+###16.1 Gráficos de Série Temporal dos Fatores Macroeconômicos
+###16.2 Gráficos de Série Temporal dos Fatores Macroeconômicos: RETORNO_LOG_CAMBIO, RETORNO_LOG_CDS
+###16.3 Gráficos de Série Temporal dos Preços das Ações
+###16.4 Gráficos de Série Temporal do Retorno logaritmo dos Preços das Ações
+###16.5 Correlação
+
+
+##17 MODELO DE REGRESSÃO MULTIPLA: RODAR REGRESSÃO PARA CADA AÇÃO
+###17.1 Considerar todas as variáveis (Selic, Cambio, CDS)
+####17.1.1 Considerações combinação (Selic + Cambio + CDS)
+###17.2 Removendo apenas coluna da taxa Selic
+####17.2.1 Considerações combinação (Cambio + CDS)
+###17.3 Removendo apenas a Taxa de cambio
+####17.3.1 Considerações combinação (Selic + CDS)
+###17.4 Ultimo teste, removendo as colunas Selic, Cambio e mantendo Risco Brasil (CDS)
+####17.4.1 Considerações utilização apenas do CDS
+##17.5 Considerações finais 
+##18 Salvar o modelo preditivo e seus resultados em arquivo JSON -> App Flutter
+
+###18.1 Download do arquivo JSON
