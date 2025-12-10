@@ -137,7 +137,9 @@ df_preco = pd.read_csv('/content/precos_acoes_5anos.csv')
 display(df_preco.head())
 df_preco.info()
 
-# --- 8 Garantir que a coluna 'Date' no df_preco esteja no formato datatime e nomeada como 'Data' ---
+# --- 8 Garantir que a coluna 'Date' no df_preco esteja no formato datatime, nomeada como 'Data' 
+e proceder merge dos frames---
+
 df_preco['Data'] = pd.to_datetime(df_preco['Date'])
 
 df_preco_filtered = df_preco[df_preco['Data'].isin(merged_df_selic_cambio['Data'])].copy()
@@ -577,3 +579,4 @@ print("Resultados salvos em 'model_results.json'. Este arquivo será usado pelo 
 # --- Download do arquivo JSON ---
 
 files.download('model_results.json')
+
