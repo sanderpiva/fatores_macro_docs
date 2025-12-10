@@ -1,4 +1,4 @@
-#2 Carregando Dataframe Taxa de Câmbio e tratando os dados
+#2 Carregando Dataframe Taxa de Câmbio, tratando os dados e checando valores missing
 
 cambio_file = '/content/STP-20251001162317444_tx_cambio.csv'
 
@@ -64,3 +64,4 @@ display(df_cambio.head())
 
 print(f"\nInformações do dataframe {cambio_file} CORRIGIDO:")
 df_cambio.info()
+
