@@ -19,5 +19,5 @@ O objetivo é transformar o complexo ambiente econômico em um modelo matemátic
 </ul>
 
 <ul>
-  <li>Para maiores detalhes do projeto, acesse: <a></a></li>
+  <li>Para maiores detalhes do projeto, acesse: <a>https://github.com/sanderpiva/fatores_macro_docs/blob/main/Doc_Fatores_Macroeconomicos.pdf</a></li>
 </ul>
