@@ -138,7 +138,7 @@ display(df_preco.head())
 df_preco.info()
 
 # --- 8 Garantir que a coluna 'Date' no df_preco esteja no formato datatime, nomeada como 'Data' 
-e proceder merge dos frames---
+# e proceder Merge dos frames---
 
 df_preco['Data'] = pd.to_datetime(df_preco['Date'])
 
@@ -579,4 +579,5 @@ print("Resultados salvos em 'model_results.json'. Este arquivo será usado pelo 
 # --- Download do arquivo JSON ---
 
 files.download('model_results.json')
+
 
