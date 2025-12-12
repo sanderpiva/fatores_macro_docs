@@ -576,8 +576,9 @@ with open('model_results.json', 'w') as f:
 
 print("Resultados salvos em 'model_results.json'. Este arquivo será usado pelo Flutter.")
 
-# --- Download do arquivo JSON ---
+# 18.1 --- Download do arquivo JSON ---
 
 files.download('model_results.json')
+
 
 
